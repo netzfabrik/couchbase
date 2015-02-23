@@ -35,13 +35,14 @@ class Couchbase
     {
         // prepare CouchbaseCLient
         $config = $this->getConfig();
-        $client = new \Couchbase(
-            $config->get('server')->toArray(),
-            $config->get('user'),
-            $config->get('password'),
-            $config->get('bucket')
-        );
-        $this->setCouchbaseClient($client);
+        $client = new \CouchbaseCluster($config->get('server'));
+
+		$toTest = $config->get('password');
+		if(isset($toTest)) {
+			$this->setCouchbaseClient($client->openBucket($config->get('bucket'), $config->get('password')));
+		} else {
+			$this->setCouchbaseClient($client->openBucket($config->get('bucket')));
+		}
 
     }
 
@@ -62,7 +63,7 @@ class Couchbase
             $data = Json::encode($data);
         }
 
-        $this->getCouchbaseClient()->set($key, $data);
+        $this->getCouchbaseClient()->upsert($key, $data);
     }
 
     /**
@@ -72,13 +73,16 @@ class Couchbase
      */
     public function get($key)
     {
-        $data = $this->getCouchbaseClient()->get($key);
+		try {
+        	$data = $this->getCouchbaseClient()->get($key);
 
-        // try to json decode data back to array
-        try {
-            $data = Json::decode($data, Json::TYPE_ARRAY);
+        	// try to json decode data back to array
+        	$data = Json::decode($data->value, Json::TYPE_ARRAY);
         }
-        catch (\Exception $e) { /* do nothing */ }
+        catch(\CouchbaseException $e){ // The key don't exist
+        	$data=null;
+        }
+        catch (\Exception $e) { /* Do Nothing */ }
 
         return $data;
     }
